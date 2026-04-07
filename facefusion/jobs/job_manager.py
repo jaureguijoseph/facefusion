@@ -1,6 +1,7 @@
 import os
 from copy import copy
 from typing import List, Optional
+import re
 
 import facefusion.choices
 from facefusion.filesystem import create_directory, get_file_name, is_directory, is_file, move_file, remove_directory, remove_file, resolve_file_pattern
@@ -10,6 +11,11 @@ from facefusion.time_helper import get_current_date_time
 from facefusion.types import Args, Job, JobSet, JobStatus, JobStep, JobStepStatus
 
 JOBS_PATH : Optional[str] = None
+JOB_ID_PATTERN = re.compile(r'^[A-Za-z0-9_.-]+$')
+
+
+def is_valid_job_id(job_id : str) -> bool:
+	return bool(job_id) and bool(JOB_ID_PATTERN.fullmatch(job_id))
 
 
 def init_jobs(jobs_path : str) -> bool:
@@ -168,6 +174,8 @@ def remove_step(job_id : str, step_index : int) -> bool:
 
 
 def get_steps(job_id : str) -> List[JobStep]:
+	if not is_valid_job_id(job_id):
+		return []
 	job = read_job_file(job_id)
 
 	if job:
@@ -184,6 +192,8 @@ def count_step_total(job_id : str) -> int:
 
 
 def set_step_status(job_id : str, step_index : int, step_status : JobStepStatus) -> bool:
+	if not is_valid_job_id(job_id):
+		return False
 	job = read_job_file(job_id)
 
 	if job:
@@ -195,6 +205,8 @@ def set_step_status(job_id : str, step_index : int, step_status : JobStepStatus)
 
 
 def set_steps_status(job_id : str, step_status : JobStepStatus) -> bool:
+	if not is_valid_job_id(job_id):
+		return False
 	job = read_job_file(job_id)
 
 	if job:
@@ -205,11 +217,15 @@ def set_steps_status(job_id : str, step_status : JobStepStatus) -> bool:
 
 
 def read_job_file(job_id : str) -> Optional[Job]:
+	if not is_valid_job_id(job_id):
+		return None
 	job_path = find_job_path(job_id)
 	return read_json(job_path) #type:ignore[return-value]
 
 
 def create_job_file(job_id : str, job : Job) -> bool:
+	if not is_valid_job_id(job_id):
+		return False
 	job_path = find_job_path(job_id)
 
 	if not is_file(job_path):
@@ -219,6 +235,8 @@ def create_job_file(job_id : str, job : Job) -> bool:
 
 
 def update_job_file(job_id : str, job : Job) -> bool:
+	if not is_valid_job_id(job_id):
+		return False
 	job_path = find_job_path(job_id)
 
 	if is_file(job_path):
@@ -228,17 +246,23 @@ def update_job_file(job_id : str, job : Job) -> bool:
 
 
 def move_job_file(job_id : str, job_status : JobStatus) -> bool:
+	if not is_valid_job_id(job_id):
+		return False
 	job_path = find_job_path(job_id)
 	job_move_path = suggest_job_path(job_id, job_status)
 	return move_file(job_path, job_move_path)
 
 
 def delete_job_file(job_id : str) -> bool:
+	if not is_valid_job_id(job_id):
+		return False
 	job_path = find_job_path(job_id)
 	return remove_file(job_path)
 
 
 def suggest_job_path(job_id : str, job_status : JobStatus) -> Optional[str]:
+	if not is_valid_job_id(job_id):
+		return None
 	job_file_name = get_job_file_name(job_id)
 
 	if job_file_name:
@@ -247,6 +271,8 @@ def suggest_job_path(job_id : str, job_status : JobStatus) -> Optional[str]:
 
 
 def find_job_path(job_id : str) -> Optional[str]:
+	if not is_valid_job_id(job_id):
+		return None
 	job_file_name = get_job_file_name(job_id)
 
 	if job_file_name:
@@ -260,6 +286,6 @@ def find_job_path(job_id : str) -> Optional[str]:
 
 
 def get_job_file_name(job_id : str) -> Optional[str]:
-	if job_id:
+	if job_id and is_valid_job_id(job_id):
 		return job_id + '.json'
 	return None
