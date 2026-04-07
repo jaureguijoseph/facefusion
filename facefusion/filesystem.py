@@ -153,9 +153,29 @@ def resolve_file_paths(directory_path : str) -> List[str]:
 
 
 def resolve_file_pattern(file_pattern : str) -> List[str]:
-	if in_directory(file_pattern):
-		return sorted(glob.glob(file_pattern))
-	return []
+	"""
+	Resolve a glob pattern to file paths in a safe way.
+
+	The directory portion of the pattern must refer to an existing directory
+	and must not itself contain any glob wildcards. Only the final path
+	component (the file name pattern) is allowed to contain wildcards.
+	"""
+	if not file_pattern:
+		return []
+	# Normalize the pattern to eliminate any '..' components.
+	normalized_pattern = os.path.normpath(file_pattern)
+	directory_path = os.path.dirname(normalized_pattern)
+	file_name_pattern = os.path.basename(normalized_pattern)
+
+	# Do not allow glob wildcards in the directory portion to avoid
+	# expanding into unintended paths.
+	if not directory_path or any(char in directory_path for char in ['*', '?', '[', ']']):
+		return []
+
+	if not is_directory(directory_path):
+		return []
+
+	return sorted(glob.glob(os.path.join(directory_path, file_name_pattern)))
 
 
 def is_directory(directory_path : str) -> bool:
@@ -165,6 +185,11 @@ def is_directory(directory_path : str) -> bool:
 
 
 def in_directory(file_path : str) -> bool:
+	"""
+	Check that the path refers to something inside an existing directory.
+	This helper does not follow glob patterns; callers that work with
+	globs should validate the directory portion separately.
+	"""
 	if file_path:
 		directory_path = os.path.dirname(file_path)
 		if directory_path:

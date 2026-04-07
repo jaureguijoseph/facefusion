@@ -18,10 +18,22 @@ def is_valid_job_id(job_id : str) -> bool:
 	return bool(job_id) and bool(JOB_ID_PATTERN.fullmatch(job_id))
 
 
+def is_valid_job_status(job_status : JobStatus) -> bool:
+	"""
+	Check that the given job status is one of the known choices.
+	This prevents arbitrary directory names from being used when
+	constructing job file paths.
+	"""
+	return job_status in facefusion.choices.job_statuses
+
+
 def init_jobs(jobs_path : str) -> bool:
 	global JOBS_PATH
 
-	JOBS_PATH = jobs_path
+	if not jobs_path:
+		return False
+	# Normalize the jobs root path to avoid issues with '..' components.
+	JOBS_PATH = os.path.abspath(jobs_path)
 	job_status_paths = [ os.path.join(JOBS_PATH, job_status) for job_status in facefusion.choices.job_statuses ]
 
 	for job_status_path in job_status_paths:
@@ -87,8 +99,14 @@ def delete_jobs(halt_on_error : bool) -> bool:
 
 
 def find_jobs(job_status : JobStatus) -> JobSet:
-	job_ids = find_job_ids(job_status)
 	job_set : JobSet = {}
+
+	# Only operate on known job statuses to avoid constructing
+	# unexpected directory paths.
+	if not is_valid_job_status(job_status):
+		return job_set
+
+	job_ids = find_job_ids(job_status)
 
 	for job_id in job_ids:
 		job_set[job_id] = read_job_file(job_id)
@@ -96,14 +114,17 @@ def find_jobs(job_status : JobStatus) -> JobSet:
 
 
 def find_job_ids(job_status : JobStatus) -> List[str]:
+	if not JOBS_PATH or not is_valid_job_status(job_status):
+		return []
 	job_pattern = os.path.join(JOBS_PATH, job_status, '*.json')
 	job_paths = resolve_file_pattern(job_pattern)
 	job_paths.sort(key = os.path.getmtime)
-	job_ids = []
+	job_ids : List[str] = []
 
 	for job_path in job_paths:
 		job_id = get_file_name(job_path)
-		job_ids.append(job_id)
+		if job_id:
+			job_ids.append(job_id)
 	return job_ids
 
 
@@ -261,11 +282,11 @@ def delete_job_file(job_id : str) -> bool:
 
 
 def suggest_job_path(job_id : str, job_status : JobStatus) -> Optional[str]:
-	if not is_valid_job_id(job_id):
+	if not is_valid_job_id(job_id) or not is_valid_job_status(job_status):
 		return None
 	job_file_name = get_job_file_name(job_id)
 
-	if job_file_name:
+	if job_file_name and JOBS_PATH:
 		return os.path.join(JOBS_PATH, job_status, job_file_name)
 	return None
 
